@@ -4,9 +4,16 @@
 
 ---
 
-## 📋 Problema que resolve
+## 📋 Descrição da Solução
 
-O PetOS centraliza o histórico de saúde, vacinas, rotinas e alertas dos pets, permitindo que tutores e clínicas veterinárias acompanhem a saúde dos animais de forma longitudinal, com notificações automáticas de vacinas vencidas ou próximas do vencimento.
+O PetOS é uma aplicação web (Java 21 + Spring Boot) que centraliza o histórico de saúde, vacinas, rotinas e alertas dos pets, permitindo que tutores e clínicas veterinárias acompanhem a saúde dos animais de forma longitudinal, com notificações automáticas de vacinas vencidas ou próximas do vencimento. A UI (Thymeleaf) e a API REST (JWT) são servidas pelo mesmo projeto, publicado em nuvem na Azure com banco de dados PostgreSQL também em nuvem.
+
+## 💼 Benefícios para o Negócio
+
+- **Reduz vacinas esquecidas/atrasadas:** o sistema calcula automaticamente o status de cada vacina (`PENDING`, `APPLIED`, `EXPIRING_SOON`, `OVERDUE`) e gera alertas preventivos, eliminando o controle manual em planilhas ou papel.
+- **Centraliza o histórico do pet:** vacinas, rotinas (passeios, alimentação, banho, consultas) e alertas ficam reunidos numa única timeline por pet, em vez de espalhados entre clínica e tutor.
+- **Separa responsabilidades por papel:** tutores acompanham apenas seus próprios pets ativos; clínicas registram e mantêm as vacinas de todos os pets — refletindo a divisão real de responsabilidades entre quem cuida do pet no dia a dia e quem presta o serviço veterinário.
+- **Rastreabilidade:** cada alerta preventivo fica vinculado à vacina que o originou, evitando duplicidade de notificações e permitindo auditar por que um alerta foi disparado.
 
 ---
 
@@ -44,7 +51,8 @@ As views ficam em `project/src/main/resources/templates/` (login, cadastro, home
 | Flyway | — |
 | Spring Data JPA | — |
 | Bean Validation | — |
-| H2 Database | — |
+| H2 Database (local/testes) | — |
+| PostgreSQL (produção, Azure Database for PostgreSQL Flexible Server) | 16 |
 | SpringDoc OpenAPI | 2.8.6 |
 | Lombok | 1.18.38 |
 | Maven | 3.x |
@@ -76,8 +84,8 @@ Após o build, também é possível iniciar com `java -jar target/petos-challeng
 
 ### Acesso, login e perfis
 
-- Aplicação: **https://petos-java.onrender.com**; login: **https://petos-java.onrender.com/login**.
-- Cadastro: **https://petos-java.onrender.com/cadastro**. Após cadastrar, entre com e-mail e senha.
+- Aplicação: **https://petos-561082.azurewebsites.net**; login: **https://petos-561082.azurewebsites.net/login**.
+- Cadastro: **https://petos-561082.azurewebsites.net/cadastro**. Após cadastrar, entre com e-mail e senha.
 - No profile `dev` (padrão), existem contas de demonstração: `tutor@petos.local` e `clinica@petos.local`. São exclusivas para desenvolvimento local.
 - Após login, o usuário retorna à página protegida solicitada ou segue para `/web`. O botão **Sair** encerra a sessão.
 - **TUTOR:** cadastra pets, consulta somente seus pets ativos, registra rotinas e acompanha vacinação e histórico.
@@ -101,6 +109,8 @@ A proteção é feita no servidor por Spring Security e pelos services com owner
 
 No PowerShell, configure variáveis com `$env:NOME = 'valor'` antes de iniciar a aplicação. Não versione segredos. Para guardar dados entre reinícios locais, use `$env:SPRING_DATASOURCE_URL = 'jdbc:h2:file:./data/petosdb;DB_CLOSE_ON_EXIT=FALSE'`, executando sempre a partir de `project/`. No modo em memória, os dados são perdidos ao encerrar a JVM.
 
+O DDL completo, com comentários em cada tabela e coluna, está consolidado em [`script_bd.sql`](./script_bd.sql), na raiz do repositório (arquivo de documentação/entrega — quem sobe a aplicação não precisa executá-lo manualmente, o Flyway já aplica tudo).
+
 O Flyway executa automaticamente ao iniciar:
 
 1. `V1__create_initial_schema.sql`: estrutura inicial do domínio.
@@ -120,6 +130,55 @@ Os formulários combinam validações HTML com Bean Validation e regras de servi
 ### Testes
 
 `.\mvnw.cmd -B clean verify` executa testes unitários, de repositório e de integração, incluindo renderização Thymeleaf, login/logout, CSRF, os dois perfis, ownership, vacinação preventiva, histórico e validações. Não há etapa de lint Node/npm; não existe frontend Node independente.
+
+---
+
+## ☁️ Deploy no Azure
+
+A aplicação roda em produção 100% na nuvem, conforme exigido pela disciplina: **Azure App Service (Linux, Java 21, tier F1)** + **Azure Database for PostgreSQL Flexible Server**, nada executado localmente.
+
+### Provisionamento
+
+O script `azure-setup.sh` (raiz deste repositório) cria toda a infraestrutura via Azure CLI:
+- Resource Group
+- Servidor PostgreSQL Flexible Server (`Standard_B1ms`, Burstable, acesso público liberado para a assinatura de estudante)
+- Banco de dados `petosdb`
+- Application Insights (telemetria/monitoramento)
+- App Service Plan (Linux, F1)
+- Web App (runtime `JAVA|21-java21`)
+- App Settings do Web App com as credenciais do banco e os segredos da aplicação
+- Integração CI/CD com GitHub Actions (`az webapp deployment github-actions add`)
+
+Para recriar o ambiente do zero: `chmod +x azure-setup.sh && ./azure-setup.sh`. Para derrubar tudo e não gastar créditos: `./azure-delete.sh`.
+
+### CI/CD (GitHub Actions)
+
+O workflow em `.github/workflows/` builda e publica a cada push na `main`:
+1. Checkout do repositório
+2. Setup do JDK 21 (Temurin)
+3. `mvn clean install` com `working-directory: project` (o `pom.xml` não está na raiz do repo, está em `project/`)
+4. Deploy do jar gerado (`project/target/*.jar`) para o Web App via `azure/webapps-deploy`, usando o publish profile como secret
+
+O passo de build **não** recebe as credenciais de banco via GitHub Secrets — os testes usam o profile `test` com H2 em memória (`application-test.properties`), e as credenciais reais de produção só existem como App Settings do Web App, aplicadas em runtime.
+
+### Variáveis em produção (App Settings do Web App)
+
+Além das variáveis já listadas em [Configuração e banco](#configuração-e-banco), o Web App tem:
+
+| Variável | Origem |
+|---|---|
+| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://<servidor>.postgres.database.azure.com:5432/petosdb?sslmode=require` |
+| `APPINSIGHTS_CONNECTIONSTRING` / `APPLICATIONINSIGHTS_CONNECTION_STRING` / `ApplicationInsightsAgent_EXTENSION_VERSION` / `XDT_MicrosoftApplicationInsights_Mode` / `XDT_MicrosoftApplicationInsights_PreemptSdk` | Geradas automaticamente ao conectar o Application Insights ao Web App; não editar manualmente |
+
+### Conectando ao banco pelo VS Code
+
+Para rodar scripts `.sql` direto contra o Postgres do Azure, use a extensão **PostgreSQL** da Microsoft (`ms-ossdata.vscode-pgsql`) — não a extensão **SQL Server (mssql)**, que fala um protocolo diferente e não conecta. Dados de conexão: host e porta do servidor Postgres, banco `petosdb`, usuário/senha definidos em `PG_ADMIN_USER`/`PG_ADMIN_PASSWORD` no `azure-setup.sh`, SSL mode `Require`.
+
+### Testando a API autenticada (Postman)
+
+1. `POST /auth/login` com `{"email": "...", "password": "..."}` → a resposta traz `token` (JWT) e `tokenType: Bearer`.
+2. Nas demais requisições, use a aba **Authorization → Bearer Token** do Postman com esse token (equivale ao header `Authorization: Bearer <token>`).
+3. Sem usuário ainda? Use `POST /auth/register` primeiro — já devolve o token, sem precisar logar depois.
 
 ---
 
@@ -178,14 +237,16 @@ Os formulários combinam validações HTML com Bean Validation e regras de servi
 
 Após subir a aplicação, acesse:
 
-- **Swagger UI:** [https://petos-java.onrender.com/swagger-ui/index.html](http://localhost:8080/swagger-ui.html)
-- **API Docs (JSON):** [https://petos-java.onrender.com/api-docs](http://localhost:8080/api-docs)
+- **Swagger UI:** [https://petos-561082.azurewebsites.net/swagger-ui/index.html](http://localhost:8080/swagger-ui.html)
+- **API Docs (JSON):** [https://petos-561082.azurewebsites.net/api-docs](http://localhost:8080/api-docs)
 
 ---
 
-## 🗄️ H2 Console
+## 🗄️ H2 Console (somente ambiente local)
 
-Disponível somente com o profile `dev`, para desenvolvimento local. Não exponha esse profile publicamente:
+> ⚠️ O H2 é usado **apenas** para desenvolvimento local e para os testes automatizados (`application-test.properties`). O ambiente publicado no Azure usa exclusivamente **PostgreSQL** (`SPRING_DATASOURCE_URL` sobrescrito nas App Settings do Web App) — o H2 nunca é o banco de dados da aplicação em produção.
+
+Disponível somente com o profile `dev`, rodando localmente:
 
 - **URL:** [http://localhost:8080/h2-console](http://localhost:8080/h2-console)
 - **JDBC URL:** a mesma configurada em `SPRING_DATASOURCE_URL` (por padrão `jdbc:h2:mem:petosdb`)
@@ -211,17 +272,6 @@ develop        → integração contínua
 feature/*      → desenvolvimento de módulos
 release/v1.0.0 → preparação para produção
 ```
-
-Branches utilizadas:
-- `feature/pet-crud`
-- `feature/vaccine-module`
-- `feature/routine-module`
-- `feature/alert-module`
-- `feature/exception-handler`
-- `feature/swagger-config`
-- `feature/cache`
-- `release/v1.0.0`
-
 ---
 
 ## 📦 Enums disponíveis
