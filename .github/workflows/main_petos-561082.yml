@@ -39,4 +39,4 @@ jobs:
         app-name: 'petos-561082'
         slot-name: 'production'
         publish-profile: ${{ secrets.AzureAppService_PublishProfile_05eeebd2dbd6418a8aff9fdd9634e781 }}
-        package: '${{ github.workspace }}/target/*.jar'
+        package: '${{ github.workspace }}project/target/*.jar'
