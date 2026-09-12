@@ -56,80 +56,7 @@ As views ficam em `project/src/main/resources/templates/` (login, cadastro, home
 | SpringDoc OpenAPI | 2.8.6 |
 | Lombok | 1.18.38 |
 | Maven | 3.x |
-
----
-
-## ▶️ Como rodar
-
-### Pré-requisitos
-- JDK 21, com `JAVA_HOME` apontando para a instalação e `%JAVA_HOME%\bin` no `PATH`.
-- Internet na primeira execução para baixar o Maven e as dependências.
-- Maven global não é obrigatório: use o Wrapper incluído em `project/`.
-
-### Rodando localmente no Windows (PowerShell)
-
-Execute a partir da raiz deste repositório:
-
-```powershell
-Set-Location .\project
-java -version
-.\mvnw.cmd -version
-.\mvnw.cmd -B clean verify
-.\mvnw.cmd spring-boot:run
-```
-
-No Linux/macOS, use `./mvnw` no lugar de `.\mvnw.cmd`. Se preferir o Maven Daemon já instalado, `mvnd clean compile` deve ser executado dentro de `project/`, também com JDK 21. `compile` não executa testes; `clean verify` testa e empacota.
-
-Após o build, também é possível iniciar com `java -jar target/petos-challenge-1.0.0.jar`. Não é necessário instalar npm nem iniciar outro frontend.
-
-### Acesso, login e perfis
-
-- Aplicação: **https://petos-561082.azurewebsites.net**; login: **https://petos-561082.azurewebsites.net/login**.
-- Cadastro: **https://petos-561082.azurewebsites.net/cadastro**. Após cadastrar, entre com e-mail e senha.
-- No profile `dev` (padrão), existem contas de demonstração: `tutor@petos.local` e `clinica@petos.local`. São exclusivas para desenvolvimento local.
-- Após login, o usuário retorna à página protegida solicitada ou segue para `/web`. O botão **Sair** encerra a sessão.
-- **TUTOR:** cadastra pets, consulta somente seus pets ativos, registra rotinas e acompanha vacinação e histórico.
-- **CLINICA:** consulta pets ativos de todos os tutores e registra, atualiza e exclui vacinas. Não cadastra pets. Não existe vínculo individual Clínica–Pet no modelo atual.
-- A regra atual mantém a escrita de vacinas restrita à CLINICA; esta integração não altera permissões de negócio.
-
-A proteção é feita no servidor por Spring Security e pelos services com ownership. As páginas usam sessão e CSRF; a API continua usando JWT Bearer, sem aceitar a sessão web como autenticação. Para Swagger, obtenha um token em `POST /auth/login` e use **Authorize**. `POST /auth/register` e `GET /auth/me` completam o contrato de autenticação REST.
-
-### Configuração e banco
-
-| Variável | Comportamento                                                                                                                                                |
-|---|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `SPRING_PROFILES_ACTIVE` | Padrão `dev`; habilita dados de demonstração e console H2 local.                                                                                             |
-| `SERVER_PORT` | Padrão `8080`.                                                                                                                                               |
-| `SPRING_DATASOURCE_URL` | Padrão H2 em memória: `jdbc:h2:mem:petosdb`.                                                                        |
-| `SPRING_DATASOURCE_USERNAME` / `SPRING_DATASOURCE_PASSWORD` | Padrão `sa` / senha protegida, somente para ambiente local.                                                                                                  |
-| `PETOS_DEV_SEED_PASSWORD` | Senha das contas de demonstração na criação. Alterá-la não redefine contas já persistidas.                                                                   |
-| `PETOS_JWT_SECRET` | Segredo aleatório de pelo menos 32 caracteres, fornecido externamente. Sem configuração, uma chave efêmera é gerada e tokens deixam de valer após reiniciar. |
-| `PETOS_JWT_EXPIRATION_MINUTES` | Validade do token da API, padrão `120`.                                                                                                                      |
-| `PETOS_CORS_ALLOWED_ORIGINS` | Origens explícitas da API. A UI integrada funciona na mesma origem e não depende de portas de frontend externo.                                              |
-
-No PowerShell, configure variáveis com `$env:NOME = 'valor'` antes de iniciar a aplicação. Não versione segredos. Para guardar dados entre reinícios locais, use `$env:SPRING_DATASOURCE_URL = 'jdbc:h2:file:./data/petosdb;DB_CLOSE_ON_EXIT=FALSE'`, executando sempre a partir de `project/`. No modo em memória, os dados são perdidos ao encerrar a JVM.
-
-O DDL completo, com comentários em cada tabela e coluna, está consolidado em [`script_bd.sql`](./script_bd.sql), na raiz do repositório (arquivo de documentação/entrega — quem sobe a aplicação não precisa executá-lo manualmente, o Flyway já aplica tudo).
-
-O Flyway executa automaticamente ao iniciar:
-
-1. `V1__create_initial_schema.sql`: estrutura inicial do domínio.
-2. `V2__create_users_and_pet_ownership.sql`: usuários e propriedade dos pets.
-3. `V3__link_alert_to_vaccine.sql`: associação do alerta à vacina.
-
-O profile `dev` também carrega `db/dev`. O histórico fica em `flyway_schema_history`; uma segunda inicialização não reaplica migrations versionadas já concluídas. O Hibernate apenas valida o schema (`ddl-auto=validate`), e `data.sql` não é executado. Não apague tabelas nem altere migrations aplicadas para contornar falhas de validação.
-
-### Fluxos na interface
-
-**Vacinação preventiva:** entre como CLINICA → selecione um pet → abra **Vacinação preventiva** → registre uma dose pendente com vencimento nos próximos 30 dias → salve. O backend avalia a situação e sincroniza o alerta preventivo, exibido na caderneta. Ao atualizar a dose com data de aplicação, o alerta pendente é resolvido. O TUTOR acompanha esses resultados no próprio pet. A prevenção de duplicidade é feita pelo service/query, não por uma constraint UNIQUE; concorrência simultânea permanece uma limitação.
-
-**Histórico consolidado:** selecione um pet → abra **Histórico consolidado** → consulte a timeline real de vacinas, rotinas e alertas, com filtro por categoria. Registre uma rotina (como consulta veterinária) e retorne ao histórico para acompanhar o novo registro. Pets inativos e dados de outros tutores respeitam as restrições do backend.
-
-Os formulários combinam validações HTML com Bean Validation e regras de service, exibindo erros de campo, erros de negócio e mensagens de sucesso. As páginas também contemplam ausência de dados e acesso negado.
-
-### Testes
-
-`.\mvnw.cmd -B clean verify` executa testes unitários, de repositório e de integração, incluindo renderização Thymeleaf, login/logout, CSRF, os dois perfis, ownership, vacinação preventiva, histórico e validações. Não há etapa de lint Node/npm; não existe frontend Node independente.
+|
 
 ---
 
@@ -169,6 +96,7 @@ Além das variáveis já listadas em [Configuração e banco](#configuração-e-
 |---|---|
 | `SPRING_DATASOURCE_URL` | `jdbc:postgresql://<servidor>.postgres.database.azure.com:5432/petosdb?sslmode=require` |
 | `APPINSIGHTS_CONNECTIONSTRING` / `APPLICATIONINSIGHTS_CONNECTION_STRING` / `ApplicationInsightsAgent_EXTENSION_VERSION` / `XDT_MicrosoftApplicationInsights_Mode` / `XDT_MicrosoftApplicationInsights_PreemptSdk` | Geradas automaticamente ao conectar o Application Insights ao Web App; não editar manualmente |
+|
 
 ### Conectando ao banco pelo VS Code
 
@@ -179,6 +107,80 @@ Para rodar scripts `.sql` direto contra o Postgres do Azure, use a extensão **P
 1. `POST /auth/login` com `{"email": "...", "password": "..."}` → a resposta traz `token` (JWT) e `tokenType: Bearer`.
 2. Nas demais requisições, use a aba **Authorization → Bearer Token** do Postman com esse token (equivale ao header `Authorization: Bearer <token>`).
 3. Sem usuário ainda? Use `POST /auth/register` primeiro — já devolve o token, sem precisar logar depois.
+
+### Acesso, login e perfis
+
+- Aplicação: **https://petos-561082.azurewebsites.net**; login: **https://petos-561082.azurewebsites.net/login**.
+- Cadastro: **https://petos-561082.azurewebsites.net/cadastro**. Após cadastrar, entre com e-mail e senha.
+- No profile `dev` (padrão), existem contas de demonstração: `tutor@petos.local` e `clinica@petos.local`. São exclusivas para desenvolvimento local.
+- Após login, o usuário retorna à página protegida solicitada ou segue para `/web`. O botão **Sair** encerra a sessão.
+- **TUTOR:** cadastra pets, consulta somente seus pets ativos, registra rotinas e acompanha vacinação e histórico.
+- **CLINICA:** consulta pets ativos de todos os tutores e registra, atualiza e exclui vacinas. Não cadastra pets. Não existe vínculo individual Clínica–Pet no modelo atual.
+- A regra atual mantém a escrita de vacinas restrita à CLINICA; esta integração não altera permissões de negócio.
+
+A proteção é feita no servidor por Spring Security e pelos services com ownership. As páginas usam sessão e CSRF; a API continua usando JWT Bearer, sem aceitar a sessão web como autenticação. Para Swagger, obtenha um token em `POST /auth/login` e use **Authorize**. `POST /auth/register` e `GET /auth/me` completam o contrato de autenticação REST.
+
+---
+
+## ▶️ Como rodar localmente
+
+### Pré-requisitos
+- JDK 21, com `JAVA_HOME` apontando para a instalação e `%JAVA_HOME%\bin` no `PATH`.
+- Internet na primeira execução para baixar o Maven e as dependências.
+- Maven global não é obrigatório: use o Wrapper incluído em `project/`.
+
+### Rodando localmente no Windows (PowerShell)
+
+Execute a partir da raiz deste repositório:
+
+```powershell
+Set-Location .\project
+java -version
+.\mvnw.cmd -version
+.\mvnw.cmd -B clean verify
+.\mvnw.cmd spring-boot:run
+```
+
+No Linux/macOS, use `./mvnw` no lugar de `.\mvnw.cmd`. Se preferir o Maven Daemon já instalado, `mvnd clean compile` deve ser executado dentro de `project/`, também com JDK 21. `compile` não executa testes; `clean verify` testa e empacota.
+
+Após o build, também é possível iniciar com `java -jar target/petos-challenge-1.0.0.jar`. Não é necessário instalar npm nem iniciar outro frontend.
+
+### Configuração e banco
+
+| Variável | Comportamento                                                                                                                                                |
+|---|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `SPRING_PROFILES_ACTIVE` | Padrão `dev`; habilita dados de demonstração e console H2 local.                                                                                             |
+| `SERVER_PORT` | Padrão `8080`.                                                                                                                                               |
+| `SPRING_DATASOURCE_URL` | Padrão H2 em memória: `jdbc:h2:mem:petosdb`.                                                                        |
+| `SPRING_DATASOURCE_USERNAME` / `SPRING_DATASOURCE_PASSWORD` | Padrão `sa` / senha protegida, somente para ambiente local.                                                                                                  |
+| `PETOS_DEV_SEED_PASSWORD` | Senha das contas de demonstração na criação. Alterá-la não redefine contas já persistidas.                                                                   |
+| `PETOS_JWT_SECRET` | Segredo aleatório de pelo menos 32 caracteres, fornecido externamente. Sem configuração, uma chave efêmera é gerada e tokens deixam de valer após reiniciar. |
+| `PETOS_JWT_EXPIRATION_MINUTES` | Validade do token da API, padrão `120`.                                                                                                                      |
+| `PETOS_CORS_ALLOWED_ORIGINS` | Origens explícitas da API. A UI integrada funciona na mesma origem e não depende de portas de frontend externo.                                              |
+
+No PowerShell, configure variáveis com `$env:NOME = 'valor'` antes de iniciar a aplicação. Não versione segredos. Para guardar dados entre reinícios locais, use `$env:SPRING_DATASOURCE_URL = 'jdbc:h2:file:./data/petosdb;DB_CLOSE_ON_EXIT=FALSE'`, executando sempre a partir de `project/`. No modo em memória, os dados são perdidos ao encerrar a JVM.
+
+O DDL completo, com comentários em cada tabela e coluna, está consolidado em [`script_bd.sql`](./script_bd.sql), na raiz do repositório (arquivo de documentação/entrega — quem sobe a aplicação não precisa executá-lo manualmente, o Flyway já aplica tudo).
+
+O Flyway executa automaticamente ao iniciar:
+
+1. `V1__create_initial_schema.sql`: estrutura inicial do domínio.
+2. `V2__create_users_and_pet_ownership.sql`: usuários e propriedade dos pets.
+3. `V3__link_alert_to_vaccine.sql`: associação do alerta à vacina.
+
+O profile `dev` também carrega `db/dev`. O histórico fica em `flyway_schema_history`; uma segunda inicialização não reaplica migrations versionadas já concluídas. O Hibernate apenas valida o schema (`ddl-auto=validate`), e `data.sql` não é executado. Não apague tabelas nem altere migrations aplicadas para contornar falhas de validação.
+
+### Fluxos na interface
+
+**Vacinação preventiva:** entre como CLINICA → selecione um pet → abra **Vacinação preventiva** → registre uma dose pendente com vencimento nos próximos 30 dias → salve. O backend avalia a situação e sincroniza o alerta preventivo, exibido na caderneta. Ao atualizar a dose com data de aplicação, o alerta pendente é resolvido. O TUTOR acompanha esses resultados no próprio pet. A prevenção de duplicidade é feita pelo service/query, não por uma constraint UNIQUE; concorrência simultânea permanece uma limitação.
+
+**Histórico consolidado:** selecione um pet → abra **Histórico consolidado** → consulte a timeline real de vacinas, rotinas e alertas, com filtro por categoria. Registre uma rotina (como consulta veterinária) e retorne ao histórico para acompanhar o novo registro. Pets inativos e dados de outros tutores respeitam as restrições do backend.
+
+Os formulários combinam validações HTML com Bean Validation e regras de service, exibindo erros de campo, erros de negócio e mensagens de sucesso. As páginas também contemplam ausência de dados e acesso negado.
+
+### Testes
+
+`.\mvnw.cmd -B clean verify` executa testes unitários, de repositório e de integração, incluindo renderização Thymeleaf, login/logout, CSRF, os dois perfis, ownership, vacinação preventiva, histórico e validações. Não há etapa de lint Node/npm; não existe frontend Node independente.
 
 ---
 
@@ -264,16 +266,6 @@ Disponível somente com o profile `dev`, rodando localmente:
 
 ---
 
-## 🌿 Git Flow
-
-```
-main           → entrega estável / produção
-develop        → integração contínua
-feature/*      → desenvolvimento de módulos
-release/v1.0.0 → preparação para produção
-```
----
-
 ## 📦 Enums disponíveis
 
 - **Species:** `DOG`, `CAT`, `BIRD`, `RABBIT`, `FISH`, `REPTILE`, `OTHER`
@@ -283,6 +275,17 @@ release/v1.0.0 → preparação para produção
 
 ---
 
-## 👨‍💻 Autor
+## 👥 Equipe
 
+**Turma:** 2TDSPO — FIAP
+
+| Aluno | RM |
+|---|---|
+| Gustavo Gomes Martins | 555999 |
+| Pedro dos Anjos | 563832 |
+| Matheus de Mattos Vecchi | 561716 |
+| Nicholas Albuquerque Buzo | 561082 |
+| Nicholas Camillo Canadas de Paula | 561262 |
+
+---
 Desenvolvido como desafio técnico PetOS — Java 21 + Spring Boot 3.
