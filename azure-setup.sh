@@ -94,7 +94,10 @@ az webapp config appsettings set \
   --name "$WEBAPP_NAME" \
   --resource-group "$RESOURCE_GROUP_NAME" \
   --settings \
+    PETOS_DEV_SEED_PASSWORD="petos@dev2026" \
+    PETOS_JWT_EXPIRATION_MINUTES="120" \
     PETOS_JWT_SECRET="btbTaM93//xePC28oCl6x22HG6QMbAn+QTrB5Gh9ps0=" \
+    SPRING_PROFILES_ACTIVE="dev" \
     APPLICATIONINSIGHTS_CONNECTION_STRING="$CONNECTION_STRING" \
     ApplicationInsightsAgent_EXTENSION_VERSION="~3" \
     XDT_MicrosoftApplicationInsights_Mode="Recommended" \
@@ -112,9 +115,19 @@ az monitor app-insights component connect-webapp \
   --resource-group $RESOURCE_GROUP_NAME
 
 echo "Configurando CI/CD"
-az webapp deployment github-actions add \
+EXISTING_SOURCE=$(az webapp deployment source show \
   --name $WEBAPP_NAME \
   --resource-group $RESOURCE_GROUP_NAME \
-  --repo $GITHUB_REPO_NAME \
-  --branch $BRANCH \
-  --login-with-github
+  --query repoUrl -o tsv 2>/dev/null)
+
+if [ -z "$EXISTING_SOURCE" ]; then
+  echo "Nenhuma integração de CI/CD encontrada, configurando pela primeira vez >>>"
+  az webapp deployment github-actions add \
+    --name $WEBAPP_NAME \
+    --resource-group $RESOURCE_GROUP_NAME \
+    --repo $GITHUB_REPO_NAME \
+    --branch $BRANCH \
+    --login-with-github
+else
+  echo "CI/CD já configurado ($EXISTING_SOURCE) — pulando, para não sobrescrever o .yaml já corrigido no repositório."
+fi
