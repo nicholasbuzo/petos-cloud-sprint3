@@ -56,7 +56,6 @@ As views ficam em `project/src/main/resources/templates/` (login, cadastro, home
 | SpringDoc OpenAPI | 2.8.6 |
 | Lombok | 1.18.38 |
 | Maven | 3.x |
-|
 
 ---
 
@@ -96,7 +95,6 @@ Além das variáveis já listadas em [Configuração e banco](#configuração-e-
 |---|---|
 | `SPRING_DATASOURCE_URL` | `jdbc:postgresql://<servidor>.postgres.database.azure.com:5432/petosdb?sslmode=require` |
 | `APPINSIGHTS_CONNECTIONSTRING` / `APPLICATIONINSIGHTS_CONNECTION_STRING` / `ApplicationInsightsAgent_EXTENSION_VERSION` / `XDT_MicrosoftApplicationInsights_Mode` / `XDT_MicrosoftApplicationInsights_PreemptSdk` | Geradas automaticamente ao conectar o Application Insights ao Web App; não editar manualmente |
-|
 
 ### Conectando ao banco pelo VS Code
 
