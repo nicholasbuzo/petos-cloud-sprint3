@@ -19,7 +19,7 @@ O PetOS é uma aplicação web (Java 21 + Spring Boot) que centraliza o históri
 
 ## 🏗️ Arquitetura
 
-![Arquitetura Macro](diagrama.drawio.svg)
+![Arquitetura Macro](arquitetura.drawio.png)
 
 ```
 project/
