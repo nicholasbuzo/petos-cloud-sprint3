@@ -31,6 +31,7 @@ while [ "$(az provider show --namespace Microsoft.DBforPostgreSQL --query regist
   echo "  ainda registrando..."
 done
 
+# IMPORTANTE TROCAR O IP DE ACESSO EM CASO DE APLICACAO REAL
 echo "Criando servidor PostgreSQL Flexible Server >>>"
 az postgres flexible-server create \
   --resource-group $RESOURCE_GROUP_NAME \
