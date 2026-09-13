@@ -273,6 +273,12 @@ Disponível somente com o profile `dev`, rodando localmente:
 
 ---
 
+## Vídeo explicativo
+
+[![Apresentação PetOS - Sprint 3 - Cloud & DevOps - 2TDSPO](https://img.youtube.com/vi/XJ7pQcD5UQw/maxresdefault.jpg)](https://youtu.be/XJ7pQcD5UQw)
+
+---
+
 ## 👥 Equipe
 
 **Turma:** 2TDSPO — FIAP
